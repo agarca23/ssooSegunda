@@ -18,6 +18,8 @@
 #define NUMJUECES 2
 #define NUMATLETAS 10
 
+int numeroDeAtletas;
+int numeroDeJueces;
 int colaJuez[10];/*La cola guarda una referencia en cada posicion al coche que la ocupa*/
 int colaFuente[10];
 int atletasIntroducidos=0;
@@ -26,7 +28,7 @@ int mejoresAtletas[3]={100,100,100};
 int fuenteOcupada;
 
 
-
+void estadisticas(int a);
 void nuevoCompetidorATarima1(int a);
 void nuevoCompetidorATarima2(int a);
 void inicializarAtleta(int posicionPuntero, int numeroAtleta, int necesita_beber, int ha_competido, int tarimaAsignada);
@@ -58,7 +60,7 @@ pthread_mutex_t controladorColaFuente;
 pthread_mutex_t controladorFuente;
 pthread_mutex_t controladorPodium;
 pthread_mutex_t controladorEscritura;/*controlara que no mas de dos atletas o jueces intenten escribir en el fichero*/
-pthread_cond_t fuente;
+pthread_cond_t fuenteCond;
 
 FILE *logFile;
 char* logFileName ="registroTiempos.log";
@@ -66,10 +68,14 @@ char* logFileName ="registroTiempos.log";
 
 int main(int argc, char *argv[]){
 
-	if(argv!=3){
-		printf("Argumentos incorrectos\n")
+	if(argc==1){
+		numeroDeAtletas=10;
+		numeroDeJueces=2;
+	}else if(argc==3){
+		numeroDeAtletas=atoi(argv[1]);
+		numeroDeJueces=atoi(argv[2]);
 	}else{
-
+		printf("Argumentos incorrectos\n");
 
 	}
 	if(signal(SIGUSR1,nuevoCompetidorATarima1)==SIG_ERR){
@@ -98,7 +104,9 @@ int main(int argc, char *argv[]){
 	pthread_mutex_init(&controladorFuente,NULL);
 	pthread_mutex_init(&controladorPodium,NULL);
 	pthread_mutex_init(&controladorEscritura,NULL);
-	pthread_cond_init(&fuente,NULL);
+	if(pthread_cond_init(&fuenteCond,NULL)!=0){
+		exit(-1);
+	}
 
 	/*Reservamos memoria para los atletas*/
 	punteroAtletas = (struct atletas*)malloc(sizeof(struct atletas)*NUMATLETAS);

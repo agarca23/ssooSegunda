@@ -333,6 +333,7 @@ void *accionesJuez(void* manejadora){
 
 	int idJuez= *(int*)manejadora;
 	int i=1;
+	int atletaAdecuado;
 	int tiempoEnTarima;
 	int puntuacionEjercicio;
 	int atletasAtendidos=0;
@@ -350,9 +351,11 @@ void *accionesJuez(void* manejadora){
 		pthread_mutex_lock(&controladorColaJueces);
 		/*Buscamos en la cola el primer atleta que pertenezca a la tarima*/
 		for(j=0;j<numeroDeAtletas;j++){
+			atletaAdecuado=0;
 			if(colaJuez[j]!=-1){
 				atletaActual=colaJuez[j];
 				if(punteroAtletas[atletaActual].tarimaAsignada==idJuez){
+					atletaAdecuado=1;
 					/*avanzamos la cola*/
 					for(k=j;k<numeroDeAtletas;k++){
 						if(k<numeroDeAtletas-1){
@@ -364,9 +367,28 @@ void *accionesJuez(void* manejadora){
 				}
 			}
 		}
+
+		/*Si no ha encontrado un atleta de su tarima lo coge el primero*/
+		if(atletaAdecuado==0){
+			if(colaJuez[0]!=-1){
+				atletaActual=colaJuez[0];
+				pthread_mutex_lock(&controladorEscritura);
+				sprintf(msg,"va a entrar en la tarima %d porque no hay nadie para dicha tarima",idJuez);
+				sprintf(id,"atleta_%d",punteroAtletas[atletaActual].numeroAtleta);
+				writeLogMessage(id,msg);
+				pthread_mutex_unlock(&controladorEscritura);
+				for(k=0;k<numeroDeAtletas;k++){
+					if(k<numeroDeAtletas-1){
+						colaJuez[k]=colaJuez[k+1];
+					}
+					colaJuez[numeroDeAtletas-1]=-1;
+
+				}	
+			}
+		}
 		pthread_mutex_unlock(&controladorColaJueces);
 
-		if(atletaActual!=-1&&punteroAtletas[atletaActual].tarimaAsignada==idJuez){
+		if(atletaActual!=-1){
 			probabilidadMovimiento=calculoAleatorio(10,1);
 			pthread_mutex_lock(&controladorEscritura);
 			sprintf(msg,"entra en la tarima %d",idJuez);

@@ -221,6 +221,7 @@ void inicializarAtleta(int posicionPuntero, int numeroAtleta, int necesita_beber
 
 void *accionesAtleta(void* manejadora){
 	int atletaActual=*(int*)manejadora-1;
+	int sigueEnLaCola;//se utiliza para saber si el juez ya ha cogido al atleta de la tarima
 	int comportamiento;
 	int tiempoEspera;
 	int subeTarima = 0;
@@ -254,9 +255,18 @@ void *accionesAtleta(void* manejadora){
 	while(punteroAtletas[atletaActual].ha_competido == 0){
 
 		comportamiento = calculoAleatorio(19,0);
-		if(comportamiento<3){
+		/*Comprobamos si el atleta sigue en la cola*/
+		sigueEnLaCola=0;
+		pthread_mutex_lock(&controladorColaJueces);
+		for(j=0;j<numeroDeAtletas;j++){
+			if(atletaActual==colaJuez[j]){
+				sigueEnLaCola=1;
+				break;
+			}
+		}
+
+		if(comportamiento<12&&sigueEnLaCola==1){
 			int i,j;
-			pthread_mutex_lock(&controladorColaJueces);
 			/*Dejamos hueco libre y avanzamos la cola*/
 			for(i=0;i<numeroDeAtletas;i++){
 				if(colaJuez[i]==atletaActual){
@@ -264,6 +274,7 @@ void *accionesAtleta(void* manejadora){
 					for(j=i+1;j<numeroDeAtletas;j++){
 						colaJuez[j-1]=colaJuez[j];
 					}
+
 					colaJuez[numeroDeAtletas-1]=-1;
 					break;
 				}
@@ -278,7 +289,7 @@ void *accionesAtleta(void* manejadora){
 			pthread_exit(NULL);
 		}else{
 
-
+			pthread_mutex_unlock(&controladorColaJueces);
 			sleep(3);
 			enEspera = enEspera+3;
 		}	
@@ -421,7 +432,7 @@ void *accionesJuez(void* manejadora){
 				tiempoEnTarima=calculoAleatorio(10,6);
 				sleep(tiempoEnTarima);
 				pthread_mutex_lock(&controladorEscritura);
-				sprintf(msg,"no ha realizado un movimiento válido");
+				sprintf(msg,"no ha realizado un movimiento valido");
 				sprintf(id,"atleta_%d",punteroAtletas[atletaActual].numeroAtleta);
 				writeLogMessage(id,msg);
 				pthread_mutex_unlock(&controladorEscritura);

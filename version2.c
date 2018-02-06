@@ -18,8 +18,10 @@
 #define NUMJUECES 2
 #define NUMATLETAS 10
 
-int colaJuez[10];/*La cola guarda una referencia en cada posicion al coche que la ocupa*/
-int colaFuente[10];
+int numeroDeAtletas;
+int numeroDeJueces;
+
+int *colaJuez;/*La cola guarda una referencia en cada posicion al atleta que la ocupa*/
 int atletasIntroducidos=0;
 int mejoresPuntuaciones[3]={0,0,0};
 int mejoresAtletas[3]={-1,-1,-1};
@@ -64,7 +66,27 @@ FILE *logFile;
 char* logFileName ="registroTiempos.log";
 
 
-int main(){
+int main(int argc, char *argv[]){
+
+	if(argc==1){
+		numeroDeAtletas=10;
+		printf("Se admiten %d atletas simultaneamente.\n", numeroDeAtletas);
+		numeroDeJueces=2;
+		printf("El numero de tarimas es de %d.\n", numeroDeJueces);
+	}else if(argc==3){
+		numeroDeAtletas=atoi(argv[1]);
+		printf("Se admiten %d atletas simultaneamente.\n", numeroDeAtletas);
+		numeroDeJueces=atoi(argv[2]);
+		printf("El numero de tarimas es de %d.\n", numeroDeJueces);
+		if(numeroDeAtletas<1||numeroDeJueces<1){
+			printf("Tiene que haber al menos un atleta y una tarima.\n");
+			exit(0);
+		}
+	}else{
+		printf("Argumentos incorrectos\n");
+		exit(0);
+
+	}
 	if(signal(SIGUSR1,nuevoCompetidorATarima1)==SIG_ERR){
 		exit(-1);
 	}
@@ -75,10 +97,10 @@ int main(){
 		exit(-1);
 	}
 
-	/*Declaramos los hilos juez y fuente*/
+	/*Declaramos los hilos juez */
 	pthread_t juez1;
 	pthread_t juez2;
-	//pthread_t fuente;
+
 
 
 	/*Inicializamos los semaforos*/
@@ -90,21 +112,24 @@ int main(){
 	pthread_mutex_init(&controladorEscritura,NULL);
 	pthread_cond_init(&fuenteCond,NULL);
 
-	/*Reservamos memoria para los atletas*/
-	punteroAtletas = (struct atletas*)malloc(sizeof(struct atletas)*NUMATLETAS);
+	/*Reservamos memoria para los atletas y la cola de los jueces*/
+	punteroAtletas = (struct atletas*)malloc(sizeof(struct atletas)*numeroDeAtletas);
+
+
    	int i,j;
-   	for(i=0;i<NUMATLETAS;i++){
+   	for(i=0;i<numeroDeAtletas;i++){
     	punteroAtletas[i].numeroAtleta=0;
 		punteroAtletas[i].necesita_beber=0;
 		punteroAtletas[i].ha_competido=0;
 		punteroAtletas[i].tarimaAsignada=0;
   	}
 
-   	/*Inicializamos la cola, como no tenemos -1 atletas será nuestro valor de control*/
+   	/*Reservamos memoria e inicializamos la cola, como no tenemos -1 atletas será nuestro valor de control*/
 
-	for(i=0;i<NUMATLETAS;i++){
+	colaJuez= (int *)malloc(sizeof(int)*numeroDeAtletas);
+
+	for(i=0;i<numeroDeAtletas;i++){
 		colaJuez[i]=-1;
-		colaFuente[i]=-1;
 	}
 
    	/*Lanzamos losjueces*/
@@ -113,8 +138,6 @@ int main(){
 	j=2;	
 	pthread_create(&juez2, NULL, accionesJuez,(void*)&j);
 
-	/*Lanzamos la fuente*/
-	//pthread_create(&fuente,NULL, accionesFuente,(void*)&i);
 
 		/*inicializar el archivo, lo creo si no existe y sino lo sobreescribo*/
 	logFile = fopen(logFileName,"w");
@@ -140,11 +163,11 @@ void nuevoCompetidorATarima1(int a){
 		exit(-1);
 	}
 	pthread_mutex_lock(&controladorEntrada);
-	if(atletasIntroducidos<NUMATLETAS){
+	if(atletasIntroducidos<numeroDeAtletas){
 		atletasIntroducidos++;
 		int i,j;
 
-		for(i=0;i<NUMATLETAS;i++){
+		for(i=0;i<numeroDeAtletas;i++){
 			if(punteroAtletas[i].numeroAtleta==0){
 				inicializarAtleta(i,atletasIntroducidos,0,0,1);
 
@@ -167,11 +190,11 @@ void nuevoCompetidorATarima2(int a){
 		exit(-1);
 	}
 	pthread_mutex_lock(&controladorEntrada);
-	if(atletasIntroducidos<NUMATLETAS){
+	if(atletasIntroducidos<numeroDeAtletas){
 		atletasIntroducidos++;
 		int i,j;
 
-		for(i=0;i<NUMATLETAS;i++){
+		for(i=0;i<numeroDeAtletas;i++){
 			if(punteroAtletas[i].numeroAtleta==0){
 				inicializarAtleta(i,atletasIntroducidos,0,0,2);
 
@@ -217,7 +240,7 @@ void *accionesAtleta(void* manejadora){
 	/*Añadimos el atleta a la cola*/
 	pthread_mutex_lock(&controladorColaJueces);
 	int j;
-	for(j=0;j<10;j++){
+	for(j=0;j<numeroDeAtletas;j++){
 		if(colaJuez[j]==-1){
 			colaJuez[j]=atletaActual;
 
@@ -235,13 +258,13 @@ void *accionesAtleta(void* manejadora){
 			int i,j;
 			pthread_mutex_lock(&controladorColaJueces);
 			/*Dejamos hueco libre y avanzamos la cola*/
-			for(i=0;i<10;i++){
+			for(i=0;i<numeroDeAtletas;i++){
 				if(colaJuez[i]==atletaActual){
 
-					for(j=i+1;j<10;j++){
+					for(j=i+1;j<numeroDeAtletas;j++){
 						colaJuez[j-1]=colaJuez[j];
 					}
-					colaJuez[9]=-1;
+					colaJuez[numeroDeAtletas-1]=-1;
 					break;
 				}
 			}
@@ -260,32 +283,6 @@ void *accionesAtleta(void* manejadora){
 			enEspera = enEspera+3;
 		}	
 	}
-
-	// /*Comprueba si debe asistir a la fuente*/
-	// if(punteroAtletas[atletaActual].necesita_beber==1){
-
-	// 	pthread_mutex_lock(&controladorColaFuente);
-	// 	int j;
-	// 	for(j=0;j<10;j++){
-	// 		if(colaFuente[j]==-1){
-	// 			//printf("%d\n", atletaActual);
-	// 			colaFuente[j]=atletaActual;
-	// 			//printf("%d\n", colaFuente[j]);
-	// 			//printf("Añado atleta fuente posicion%d\n",j );
-	// 			pthread_mutex_lock(&controladorEscritura);
-	// 			sprintf(msg, "se va a la fuente");
-	// 			sprintf(id,"atleta_%d",punteroAtletas[atletaActual].numeroAtleta);
-	// 			writeLogMessage(id,msg);
-	// 			pthread_mutex_unlock(&controladorEscritura);
-	// 			break;
-	// 		}
-	// 	}
-	// 	pthread_mutex_unlock(&controladorColaFuente);
-	// 	while(punteroAtletas[atletaActual].necesita_beber==1){
-	// 	//	accionesFuente();
-	// 	}	
-	// }	
-
 
 	if(punteroAtletas[atletaActual].necesita_beber=1){
 			pthread_mutex_lock(&controladorEscritura);
@@ -336,17 +333,17 @@ void *accionesJuez(void* manejadora){
 		atletaActual=-1;
 		pthread_mutex_lock(&controladorColaJueces);
 		/*Buscamos en la cola el primer atleta que pertenezca a la tarima*/
-		for(j=0;j<10;j++){
+		for(j=0;j<numeroDeAtletas;j++){
 			if(colaJuez[j]!=-1){
 				atletaActual=colaJuez[j];
 				if(punteroAtletas[atletaActual].tarimaAsignada==idJuez){
 					/*avanzamos la cola*/
-					for(k=j;k<10;k++){
-						if(k<9){
+					for(k=j;k<numeroDeAtletas;k++){
+						if(k<numeroDeAtletas-1){
 							colaJuez[k]=colaJuez[k+1];
 						}
 					}
-					colaJuez[9]=-1;
+					colaJuez[numeroDeAtletas-1]=-1;
 					break;
 				}
 			}
@@ -452,62 +449,7 @@ void *accionesJuez(void* manejadora){
 
 }
 
-void *accionesFuente(void* manejadora){
-	
-	int i;
-	int atletaBebe = -1;
-	int atletaBoton = -1;
-	char id[10];
-	char msg[100];
 
-
-	while(1){
-		pthread_mutex_lock(&controladorColaFuente);
-
-		if (colaFuente[0] != -1 && colaFuente[1] != -1)
-		{
-			atletaBebe = colaFuente[0];
-			atletaBoton = colaFuente[1];
-
-			pthread_mutex_lock(&controladorFuente);
-			fuenteOcupada = 1;
-			pthread_mutex_unlock(&controladorFuente);
-		}
-		pthread_mutex_unlock(&controladorColaFuente);
-
-		if(atletaBebe!=-1){
-
-			punteroAtletas[atletaBebe].necesita_beber=0;
-			pthread_mutex_lock(&controladorEscritura);
-			sprintf(msg, "ha bebido agua");
-			sprintf(id,"atleta_%d",punteroAtletas[atletaBebe].numeroAtleta);
-			writeLogMessage(id,msg);
-			sprintf(msg, "ha pulsado el boton de la fuente");
-			sprintf(id,"atleta_%d",punteroAtletas[atletaBoton].numeroAtleta);
-			writeLogMessage(id,msg);
-			pthread_mutex_unlock(&controladorEscritura);
-
-			/*Avanzamos la cola*/
-			pthread_mutex_lock(&controladorColaFuente);
-
-			for(i=0;i<9;i++){
-
-				colaFuente[i]=colaFuente[i+1];
-			}
-
-			colaFuente[9]=-1;
-			pthread_mutex_lock(&controladorFuente);
-			fuenteOcupada=0;
-			atletaBebe = -1;
-			pthread_mutex_unlock(&controladorFuente);
-			pthread_mutex_unlock(&controladorColaFuente);
-
-		}
-
-	}
-		
-	
-}
 
 void finalizarCompeticion(int a){
 	char id[10];
@@ -553,9 +495,6 @@ void resetearAtleta(int posicionPuntero){
 		punteroAtletas[posicionPuntero].tarimaAsignada=0;
 
 }
-
-
-
 
 int calculoAleatorio(int max, int min){
 	

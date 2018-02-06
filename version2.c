@@ -61,6 +61,7 @@ pthread_mutex_t controladorFuente;
 pthread_mutex_t controladorPodium;
 pthread_mutex_t controladorEscritura;/*controlara que no mas de dos atletas o jueces intenten escribir en el fichero*/
 pthread_cond_t fuenteCond;
+pthread_cond_t finCond;
 
 FILE *logFile;
 char* logFileName ="registroTiempos.log";
@@ -97,10 +98,10 @@ int main(int argc, char *argv[]){
 		exit(-1);
 	}
 
-	/*Declaramos los hilos juez */
-	pthread_t juez1;
-	pthread_t juez2;
+	/*Declaramos los hilos juez y reservamos memoria*/
+	pthread_t *jueces;
 
+	jueces=(pthread_t *)malloc(sizeof(pthread_t)*numeroDeJueces);
 
 
 	/*Inicializamos los semaforos*/
@@ -111,6 +112,7 @@ int main(int argc, char *argv[]){
 	pthread_mutex_init(&controladorPodium,NULL);
 	pthread_mutex_init(&controladorEscritura,NULL);
 	pthread_cond_init(&fuenteCond,NULL);
+	pthread_cond_init(&finCond,NULL);
 
 	/*Reservamos memoria para los atletas y la cola de los jueces*/
 	punteroAtletas = (struct atletas*)malloc(sizeof(struct atletas)*numeroDeAtletas);
@@ -133,10 +135,11 @@ int main(int argc, char *argv[]){
 	}
 
    	/*Lanzamos losjueces*/
-	i=1;
-	pthread_create(&juez1, NULL, accionesJuez,(void*)&i);
-	j=2;	
-	pthread_create(&juez2, NULL, accionesJuez,(void*)&j);
+	for(i=0 ;i<numeroDeJueces;i++){
+		j=i+1;
+		pthread_create(&jueces[i],NULL, accionesJuez,(void*)&j);
+		sleep(1);
+	}
 
 
 		/*inicializar el archivo, lo creo si no existe y sino lo sobreescribo*/
@@ -265,7 +268,7 @@ void *accionesAtleta(void* manejadora){
 			}
 		}
 
-		if(comportamiento<12&&sigueEnLaCola==1){
+		if(comportamiento<3&&sigueEnLaCola==1){
 			int i,j;
 			/*Dejamos hueco libre y avanzamos la cola*/
 			for(i=0;i<numeroDeAtletas;i++){
@@ -340,6 +343,8 @@ void *accionesJuez(void* manejadora){
 	char id[10];
 	char msg[100];
 
+
+	printf("Soy el juez %d iniciando.\n", idJuez);
 	while(i==1){
 		atletaActual=-1;
 		pthread_mutex_lock(&controladorColaJueces);
@@ -408,18 +413,45 @@ void *accionesJuez(void* manejadora){
 				sprintf(id,"atleta_%d",punteroAtletas[atletaActual].numeroAtleta);
 				writeLogMessage(id,msg);
 				pthread_mutex_unlock(&controladorEscritura);
-				probabilidadAgua=calculoAleatorio(10,1);
-				probabilidadAgua=9;
-				if(probabilidadAgua==9){
-					punteroAtletas[atletaActual].necesita_beber=1;
-					
-				} 
+
 				atletasAtendidos++;
 			}
 			/*Descalificado normativa*/
 			if(probabilidadMovimiento==9){
 				tiempoEnTarima=calculoAleatorio(4,1);
 				sleep(tiempoEnTarima);
+
+				/*comprobamos si la posicion pertenece al podium*/
+				pthread_mutex_lock(&controladorPodium);
+				for(j=0;j<3;j++){
+					if(puntuacionEjercicio>mejoresPuntuaciones[j]){
+						/*guaradmos la puntuacion y el id en el podium*/
+						if(j==2){
+							mejoresPuntuaciones[j]=0;
+							mejoresAtletas[j]=punteroAtletas[atletaActual].numeroAtleta;
+							break;
+						}else if(j==1){
+							mejoresPuntuaciones[j+1]=mejoresPuntuaciones[j];
+							mejoresPuntuaciones[j]=0;
+
+							mejoresAtletas[j+1]=mejoresAtletas[j];
+							mejoresAtletas[j]=punteroAtletas[atletaActual].numeroAtleta;
+							break;
+						}else{
+							mejoresPuntuaciones[j+2]=mejoresPuntuaciones[j+1];
+							mejoresPuntuaciones[j+1]=mejoresPuntuaciones[j];
+							mejoresPuntuaciones[j]=0;
+
+							mejoresAtletas[j+2]=mejoresAtletas[j+1];
+							mejoresAtletas[j+1]=mejoresAtletas[j];
+							mejoresAtletas[j]=punteroAtletas[atletaActual].numeroAtleta;
+							break;
+						}
+					}
+				}
+				pthread_mutex_unlock(&controladorPodium);
+
+
 				pthread_mutex_lock(&controladorEscritura);
 				sprintf(msg,"ha sido descalificado por no cumplir la normativa");
 				sprintf(id,"atleta_%d",punteroAtletas[atletaActual].numeroAtleta);
@@ -431,6 +463,36 @@ void *accionesJuez(void* manejadora){
 			if(probabilidadMovimiento==10){
 				tiempoEnTarima=calculoAleatorio(10,6);
 				sleep(tiempoEnTarima);
+
+				/*comprobamos si la posicion pertenece al podium*/
+				pthread_mutex_lock(&controladorPodium);
+				for(j=0;j<3;j++){
+					if(puntuacionEjercicio>mejoresPuntuaciones[j]){
+						/*guaradmos la puntuacion y el id en el podium*/
+						if(j==2){
+							mejoresPuntuaciones[j]=0;
+							mejoresAtletas[j]=punteroAtletas[atletaActual].numeroAtleta;
+							break;
+						}else if(j==1){
+							mejoresPuntuaciones[j+1]=mejoresPuntuaciones[j];
+							mejoresPuntuaciones[j]=0;
+
+							mejoresAtletas[j+1]=mejoresAtletas[j];
+							mejoresAtletas[j]=punteroAtletas[atletaActual].numeroAtleta;
+							break;
+						}else{
+							mejoresPuntuaciones[j+2]=mejoresPuntuaciones[j+1];
+							mejoresPuntuaciones[j+1]=mejoresPuntuaciones[j];
+							mejoresPuntuaciones[j]=0;
+
+							mejoresAtletas[j+2]=mejoresAtletas[j+1];
+							mejoresAtletas[j+1]=mejoresAtletas[j];
+							mejoresAtletas[j]=punteroAtletas[atletaActual].numeroAtleta;
+							break;
+						}
+					}
+				}
+				pthread_mutex_unlock(&controladorPodium);
 				pthread_mutex_lock(&controladorEscritura);
 				sprintf(msg,"no ha realizado un movimiento valido");
 				sprintf(id,"atleta_%d",punteroAtletas[atletaActual].numeroAtleta);
@@ -439,7 +501,17 @@ void *accionesJuez(void* manejadora){
 				atletasAtendidos++;
 
 			}
+
+			probabilidadAgua=calculoAleatorio(10,1);
+			probabilidadAgua=9;
+			if(probabilidadAgua==9){
+				punteroAtletas[atletaActual].necesita_beber=1;
+					
+			} 
+
 			punteroAtletas[atletaActual].ha_competido=1;
+			pthread_cond_signal(&finCond);
+
 			if(atletasAtendidos%4==0){
 				pthread_mutex_lock(&controladorEscritura);
 				sprintf(msg,"comienza el descanso");
@@ -468,17 +540,41 @@ void finalizarCompeticion(int a){
 	if(signal(SIGINT,finalizarCompeticion)==SIG_ERR){
 		exit(-1);
 	}
+
+
+	/*Esperamos a que todos los atletas acaben*/
+	pthread_mutex_lock(&controladorColaJueces);
+	while(colaJuez[0]!=-1){
+		
+			pthread_cond_wait(&finCond, &controladorColaJueces);
+		
+	}
+	pthread_mutex_unlock(&controladorColaJueces);
+
+
+	pthread_mutex_lock(&controladorPodium);
 	pthread_mutex_lock(&controladorEscritura);
-	sprintf(id,"el atleta_%d",mejoresAtletas[0]);
-	sprintf(msg,"ha ganado con una puntuacion de %d", mejoresPuntuaciones[0]);
-	writeLogMessage(id,msg);
-	sprintf(id,"el atleta_%d",mejoresAtletas[1]);
-	sprintf(msg,"ha quedado segundo con una puntuacion de %d", mejoresPuntuaciones[1]);
-	writeLogMessage(id,msg);
-	sprintf(id,"el atleta_%d",mejoresAtletas[2]);
-	sprintf(msg,"ha quedado tercero con una puntuacion de %d", mejoresPuntuaciones[2]);
-	writeLogMessage(id,msg);
+
+	if(mejoresAtletas[0]!=-1){
+
+		sprintf(id,"el atleta_%d",mejoresAtletas[0]);
+		sprintf(msg,"ha ganado con una puntuacion de %d", mejoresPuntuaciones[0]);
+		writeLogMessage(id,msg);
+	}
+	if(mejoresAtletas[1]!=-1){
+		sprintf(id,"el atleta_%d",mejoresAtletas[1]);
+		sprintf(msg,"ha quedado segundo con una puntuacion de %d", mejoresPuntuaciones[1]);
+		writeLogMessage(id,msg);
+	}
+	if(mejoresAtletas[2]!=-1){
+		sprintf(id,"el atleta_%d",mejoresAtletas[2]);
+		sprintf(msg,"ha quedado tercero con una puntuacion de %d", mejoresPuntuaciones[2]);
+		writeLogMessage(id,msg);
+	}
 	pthread_mutex_unlock(&controladorEscritura);
+	pthread_mutex_unlock(&controladorPodium);
+
+
 
 	exit(0);
 }

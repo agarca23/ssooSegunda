@@ -327,8 +327,6 @@ void *accionesAtleta(void* manejadora){
 			sprintf(id,"atleta_%d",punteroAtletas[atletaActual].numeroAtleta);
 			writeLogMessage(id,msg);
 			pthread_mutex_unlock(&controladorEscritura);
-
-			pthread_exit(NULL);
 		}else{
 
 			pthread_mutex_unlock(&controladorColaJueces);

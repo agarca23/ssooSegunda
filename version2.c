@@ -167,6 +167,9 @@ int main(int argc, char *argv[]){
 }
 
 void nuevoCompetidorATarima1(int a){
+	int atletaAniadido=0;
+	char id[10];
+	char msg[100];
 	if(signal(SIGUSR1,nuevoCompetidorATarima1)==SIG_ERR){
 		exit(-1);
 	}
@@ -174,26 +177,37 @@ void nuevoCompetidorATarima1(int a){
 		exit(-1);
 	}
 	pthread_mutex_lock(&controladorEntrada);
-	if(atletasIntroducidos<numeroDeAtletas){
-		atletasIntroducidos++;
-		int i,j;
 
-		for(i=0;i<numeroDeAtletas;i++){
-			if(punteroAtletas[i].numeroAtleta==0){
-				inicializarAtleta(i,atletasIntroducidos,0,0,1);
+		
+	int i;
 
-				pthread_create(&punteroAtletas[i].hiloAtleta,NULL,accionesAtleta,(void*)&punteroAtletas[i].numeroAtleta);
+	for(i=0;i<numeroDeAtletas;i++){
+		if(punteroAtletas[i].numeroAtleta==0){
+			atletasIntroducidos++;
+			inicializarAtleta(i,atletasIntroducidos,0,0,1);
+			pthread_create(&punteroAtletas[i].hiloAtleta,NULL,accionesAtleta,(void*)&i);
+			atletaAniadido=1;
 
-				break;
-			}
+			break;
 		}
 	}
 	pthread_mutex_unlock(&controladorEntrada);
+
+	if(atletaAniadido==0){
+		pthread_mutex_lock(&controladorEscritura);
+		sprintf(msg, "No se ha podido aniadir el atleta");
+		sprintf(id,"INFORMACION");
+		writeLogMessage(id,msg);
+		pthread_mutex_unlock(&controladorEscritura);
+	}
 
 	
 }
 
 void nuevoCompetidorATarima2(int a){
+	int atletaAniadido=0;
+	char id[10];
+	char msg[100];
 	if(signal(SIGUSR1,nuevoCompetidorATarima1)==SIG_ERR){
 		exit(-1);
 	}
@@ -201,22 +215,31 @@ void nuevoCompetidorATarima2(int a){
 		exit(-1);
 	}
 	pthread_mutex_lock(&controladorEntrada);
-	if(atletasIntroducidos<numeroDeAtletas){
-		atletasIntroducidos++;
-		int i,j;
-
-		for(i=0;i<numeroDeAtletas;i++){
-			if(punteroAtletas[i].numeroAtleta==0){
-				inicializarAtleta(i,atletasIntroducidos,0,0,2);
-
-				pthread_create(&punteroAtletas[i].hiloAtleta,NULL,accionesAtleta,(void*)&punteroAtletas[i].numeroAtleta);
 
 
-				break;
-			}
+	int i;
+
+	for(i=0;i<numeroDeAtletas;i++){
+		if(punteroAtletas[i].numeroAtleta==0){
+			atletasIntroducidos++;
+			inicializarAtleta(i,atletasIntroducidos,0,0,2);
+			pthread_create(&punteroAtletas[i].hiloAtleta,NULL,accionesAtleta,(void*)&i);
+			atletaAniadido=1;
+
+			break;
 		}
 	}
 	pthread_mutex_unlock(&controladorEntrada);
+
+	if(atletaAniadido==0){
+		pthread_mutex_lock(&controladorEscritura);
+		sprintf(msg, "No se ha podido aniadir el atleta");
+		sprintf(id,"INFORMACION");
+		writeLogMessage(id,msg);
+		pthread_mutex_unlock(&controladorEscritura);
+	}
+
+
 
 	
 }
@@ -231,18 +254,22 @@ void inicializarAtleta(int posicionPuntero, int numeroAtleta, int necesita_beber
 }
 
 void *accionesAtleta(void* manejadora){
-	int atletaActual=*(int*)manejadora-1;
+	int atletaActual=*(int*)manejadora;
+	int idAtleta=punteroAtletas[atletaActual].numeroAtleta;
 	int sigueEnLaCola;//se utiliza para saber si el juez ya ha cogido al atleta de la tarima
 	int comportamiento;
 	int tiempoEspera;
 	int subeTarima = 0;
 	int enEspera=0; //Este es el tiempo que el atleta lleva en espera en una tarima
+	int tengoQueBeber=0;
 	char id[10];
 	char msg[100];
 
+
+
 	pthread_mutex_lock(&controladorEscritura);
-	sprintf(msg, "Ha llegado a la tarima %d",punteroAtletas[atletaActual].tarimaAsignada);
-	sprintf(id,"atleta_%d",punteroAtletas[atletaActual].numeroAtleta);
+	sprintf(msg, "Ha llegado al sistema se dirige hacia la tarima %d",punteroAtletas[atletaActual].tarimaAsignada);
+	sprintf(id,"NUEVO atleta_%d",punteroAtletas[atletaActual].numeroAtleta);
 	writeLogMessage(id,msg);
 	pthread_mutex_unlock(&controladorEscritura);
 
@@ -291,6 +318,11 @@ void *accionesAtleta(void* manejadora){
 				}
 			}
 			pthread_mutex_unlock(&controladorColaJueces);
+
+			pthread_mutex_lock(&controladorHaCompetido);
+			punteroAtletas[atletaActual].ha_competido=2;
+			pthread_mutex_unlock(&controladorHaCompetido);
+
 			pthread_mutex_lock(&controladorEscritura);
 			sprintf(msg, "Ha tenido un problema y no va a poder subir a la tarima");
 			sprintf(id,"atleta_%d",punteroAtletas[atletaActual].numeroAtleta);
@@ -306,10 +338,16 @@ void *accionesAtleta(void* manejadora){
 		}	
 	}
 
-	if(punteroAtletas[atletaActual].necesita_beber=1){
+	tengoQueBeber=punteroAtletas[atletaActual].necesita_beber;
+
+	pthread_mutex_lock(&controladorEntrada);
+	resetearAtleta(atletaActual);
+	pthread_mutex_unlock(&controladorEntrada);
+
+	if(tengoQueBeber==1){
 			pthread_mutex_lock(&controladorEscritura);
 			sprintf(msg, "Se va a la fuente");
-			sprintf(id,"atleta_%d",punteroAtletas[atletaActual].numeroAtleta);
+			sprintf(id,"atleta_%d",idAtleta);
 			writeLogMessage(id,msg);
 			pthread_mutex_unlock(&controladorEscritura);
 
@@ -320,7 +358,7 @@ void *accionesAtleta(void* manejadora){
 
 			pthread_mutex_lock(&controladorEscritura);
 			sprintf(msg, "Bebe agua");
-			sprintf(id,"atleta_%d",punteroAtletas[atletaActual].numeroAtleta);
+			sprintf(id,"atleta_%d",idAtleta);
 			writeLogMessage(id,msg);
 			pthread_mutex_unlock(&controladorEscritura);
 	}
@@ -328,7 +366,7 @@ void *accionesAtleta(void* manejadora){
 
 	pthread_mutex_lock(&controladorEscritura);
 	sprintf(msg, "ha completado su participacion");
-	sprintf(id,"atleta_%d",punteroAtletas[atletaActual].numeroAtleta);
+	sprintf(id,"atleta_%d",idAtleta);
 	writeLogMessage(id,msg);
 	pthread_mutex_unlock(&controladorEscritura);
 

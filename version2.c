@@ -39,6 +39,7 @@ void *accionesFuente(void *manejadora);
 void *accionesAtleta(void* manejadora);
 void finalizarCompeticion(int a);
 void resetearAtleta(int posicionPuntero);
+void mostrarEstadisticas();
 
 
 struct atletas{
@@ -60,6 +61,7 @@ pthread_mutex_t controladorColaFuente;
 pthread_mutex_t controladorFuente;
 pthread_mutex_t controladorPodium;
 pthread_mutex_t controladorEscritura;/*controlara que no mas de dos atletas o jueces intenten escribir en el fichero*/
+pthread_mutex_t controladorHaCompetido;
 pthread_cond_t fuenteCond;
 pthread_cond_t finCond;
 
@@ -97,6 +99,11 @@ int main(int argc, char *argv[]){
 	if(signal(SIGINT,finalizarCompeticion)==SIG_ERR){
 		exit(-1);
 	}
+	if(signal(SIGPIPE,mostrarEstadisticas)==SIG_ERR){
+		exit(-1);
+	}
+
+
 
 	/*Declaramos los hilos juez y reservamos memoria*/
 	pthread_t *jueces;
@@ -111,6 +118,7 @@ int main(int argc, char *argv[]){
 	pthread_mutex_init(&controladorFuente,NULL);
 	pthread_mutex_init(&controladorPodium,NULL);
 	pthread_mutex_init(&controladorEscritura,NULL);
+	pthread_mutex_init(&controladorHaCompetido,NULL);
 	pthread_cond_init(&fuenteCond,NULL);
 	pthread_cond_init(&finCond,NULL);
 
@@ -255,7 +263,7 @@ void *accionesAtleta(void* manejadora){
 
 	
 	
-	while(punteroAtletas[atletaActual].ha_competido == 0){
+	while(punteroAtletas[atletaActual].ha_competido == 0||punteroAtletas[atletaActual].ha_competido == 1){
 
 		comportamiento = calculoAleatorio(19,0);
 		/*Comprobamos si el atleta sigue en la cola*/
@@ -356,6 +364,9 @@ void *accionesJuez(void* manejadora){
 				atletaActual=colaJuez[j];
 				if(punteroAtletas[atletaActual].tarimaAsignada==idJuez){
 					atletaAdecuado=1;
+					pthread_mutex_lock(&controladorHaCompetido);
+					punteroAtletas[atletaActual].ha_competido=1;
+					pthread_mutex_unlock(&controladorHaCompetido);
 					/*avanzamos la cola*/
 					for(k=j;k<numeroDeAtletas;k++){
 						if(k<numeroDeAtletas-1){
@@ -372,6 +383,9 @@ void *accionesJuez(void* manejadora){
 		if(atletaAdecuado==0){
 			if(colaJuez[0]!=-1){
 				atletaActual=colaJuez[0];
+				pthread_mutex_lock(&controladorHaCompetido);
+				punteroAtletas[atletaActual].ha_competido=1;
+				pthread_mutex_unlock(&controladorHaCompetido);
 				pthread_mutex_lock(&controladorEscritura);
 				sprintf(msg,"va a entrar en la tarima %d porque no hay nadie para dicha tarima",idJuez);
 				sprintf(id,"atleta_%d",punteroAtletas[atletaActual].numeroAtleta);
@@ -530,8 +544,9 @@ void *accionesJuez(void* manejadora){
 				punteroAtletas[atletaActual].necesita_beber=1;
 					
 			} 
-
-			punteroAtletas[atletaActual].ha_competido=1;
+			pthread_mutex_lock(&controladorHaCompetido);
+			punteroAtletas[atletaActual].ha_competido=2;
+			pthread_mutex_unlock(&controladorHaCompetido);
 			pthread_cond_signal(&finCond);
 
 			if(atletasAtendidos%4==0){
@@ -593,9 +608,20 @@ void finalizarCompeticion(int a){
 		sprintf(msg,"ha quedado tercero con una puntuacion de %d", mejoresPuntuaciones[2]);
 		writeLogMessage(id,msg);
 	}
+
+
 	pthread_mutex_unlock(&controladorEscritura);
 	pthread_mutex_unlock(&controladorPodium);
 
+
+	pthread_mutex_lock(&controladorEscritura);
+	sprintf(msg,"Se notifica a la fuente por si algun atleta se ha quedado sin beber.");
+	sprintf(id,"Informacion");
+	writeLogMessage(id,msg);
+	pthread_mutex_unlock(&controladorEscritura);
+	pthread_cond_signal(&fuenteCond);
+
+	sleep(1);
 
 
 	exit(0);
@@ -622,6 +648,47 @@ void resetearAtleta(int posicionPuntero){
 		punteroAtletas[posicionPuntero].necesita_beber=0;
 		punteroAtletas[posicionPuntero].ha_competido=0;
 		punteroAtletas[posicionPuntero].tarimaAsignada=0;
+
+}
+
+void mostrarEstadisticas(){
+	char id[10];
+	char msg[100];
+	int atletasEsperando=0.;
+	int atletasCompitiendo=0;
+	int atletasEnSistema=0;
+
+	int i;
+	pthread_mutex_lock(&controladorHaCompetido);
+	for(i=0;i<numeroDeAtletas;i++){
+		if(punteroAtletas[i].ha_competido==0&&punteroAtletas[i].numeroAtleta!=0){
+			atletasEsperando++;
+		}
+		if(punteroAtletas[i].ha_competido==1&&punteroAtletas[i].numeroAtleta!=0){
+			atletasCompitiendo++;
+		}
+	}
+	pthread_mutex_unlock(&controladorHaCompetido);
+
+	pthread_mutex_lock(&controladorEntrada);
+	atletasEnSistema=atletasIntroducidos;
+	pthread_mutex_unlock(&controladorEntrada);
+
+	pthread_mutex_lock(&controladorEscritura);
+	sprintf(id,"ESTADISTICAS");
+	sprintf(msg,"Hay %d atletas esperando para competir.", atletasEsperando);
+	writeLogMessage(id,msg);
+	sprintf(id,"ESTADISTICAS");
+	sprintf(msg,"Hay %d atletas compitiendo en este momento.", atletasCompitiendo);
+	writeLogMessage(id,msg);
+	sprintf(id,"ESTADISTICAS");
+	sprintf(msg,"Se han introducido %d atletas.", atletasEnSistema);
+	writeLogMessage(id,msg);
+	printf("\n\n\nHay %d atletas esperando para competir.\n", atletasEsperando);
+	printf("Hay %d atletas compitiendo en este momento.\n", atletasCompitiendo);
+	printf("Se han introducido %d atletas.\n", atletasEnSistema);
+	printf("\n");
+	pthread_mutex_unlock(&controladorEscritura);
 
 }
 

@@ -1,7 +1,8 @@
 /*POWERLIFTING*/
+
+/*Autor principal: ANDRÉS GARCÍA ÁLVVAREZ*/
 /*Pablo Pérez López*/
 /*Pablo González de la Iglesia*/
-/*Andrés García Álvarez*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -15,8 +16,6 @@
 #include <pthread.h>
 #include <string.h>
 
-#define NUMJUECES 2
-#define NUMATLETAS 10
 
 int numeroDeAtletas;
 int numeroDeJueces;
@@ -343,7 +342,7 @@ void *accionesAtleta(void* manejadora){
 	pthread_mutex_lock(&controladorEntrada);
 	resetearAtleta(atletaActual);
 	pthread_mutex_unlock(&controladorEntrada);
-
+	/*Comprobamos si el atleta tiene que ir a la fuente*/
 	if(tengoQueBeber==1){
 			pthread_mutex_lock(&controladorEscritura);
 			sprintf(msg, "Se va a la fuente");
@@ -363,7 +362,7 @@ void *accionesAtleta(void* manejadora){
 			pthread_mutex_unlock(&controladorEscritura);
 	}
 	
-
+	/*Mensaje fin de hilo*/
 	pthread_mutex_lock(&controladorEscritura);
 	sprintf(msg, "ha completado su participacion");
 	sprintf(id,"atleta_%d",idAtleta);
@@ -439,7 +438,7 @@ void *accionesJuez(void* manejadora){
 			}
 		}
 		pthread_mutex_unlock(&controladorColaJueces);
-
+		/*En caso de tener un atleta valido lo sube a la tarima*/
 		if(atletaActual!=-1){
 			probabilidadMovimiento=calculoAleatorio(10,1);
 			pthread_mutex_lock(&controladorEscritura);
@@ -577,7 +576,7 @@ void *accionesJuez(void* manejadora){
 			}
 
 			probabilidadAgua=calculoAleatorio(10,1);
-			probabilidadAgua=9;
+			//probabilidadAgua=9;/*Mandamos al taleta simpre a beber*/
 			if(probabilidadAgua==9){
 				punteroAtletas[atletaActual].necesita_beber=1;
 					
@@ -586,7 +585,7 @@ void *accionesJuez(void* manejadora){
 			punteroAtletas[atletaActual].ha_competido=2;
 			pthread_mutex_unlock(&controladorHaCompetido);
 			pthread_cond_signal(&finCond);
-
+			/*Comprobamos si el juez tiene que descansar*/
 			if(atletasAtendidos%4==0){
 				pthread_mutex_lock(&controladorEscritura);
 				sprintf(msg,"comienza el descanso");
@@ -626,7 +625,7 @@ void finalizarCompeticion(int a){
 	}
 	pthread_mutex_unlock(&controladorColaJueces);
 
-
+	/*En funcion de el numero de atletas que han terminado ponemos el podium*/
 	pthread_mutex_lock(&controladorPodium);
 	pthread_mutex_lock(&controladorEscritura);
 
@@ -681,7 +680,7 @@ void writeLogMessage(char *id,char *msg){
 }
 
 void resetearAtleta(int posicionPuntero){
-
+		/*ponemos los valores como al inicio para poder utilizar la posicion del array corresoundiente*/
     	punteroAtletas[posicionPuntero].numeroAtleta=0;
 		punteroAtletas[posicionPuntero].necesita_beber=0;
 		punteroAtletas[posicionPuntero].ha_competido=0;
@@ -697,6 +696,7 @@ void mostrarEstadisticas(){
 	int atletasEnSistema=0;
 
 	int i;
+	/*Recorremos el array de atletas buscando si han competido o estan compitiendo*/
 	pthread_mutex_lock(&controladorHaCompetido);
 	for(i=0;i<numeroDeAtletas;i++){
 		if(punteroAtletas[i].ha_competido==0&&punteroAtletas[i].numeroAtleta!=0){
@@ -711,7 +711,7 @@ void mostrarEstadisticas(){
 	pthread_mutex_lock(&controladorEntrada);
 	atletasEnSistema=atletasIntroducidos;
 	pthread_mutex_unlock(&controladorEntrada);
-
+	/*Mostramos las estadisticas*/
 	pthread_mutex_lock(&controladorEscritura);
 	sprintf(id,"ESTADISTICAS");
 	sprintf(msg,"Hay %d atletas esperando para competir.", atletasEsperando);

@@ -25,6 +25,7 @@ int atletasIntroducidos=0;
 int mejoresPuntuaciones[3]={0,0,0};
 int mejoresAtletas[3]={-1,-1,-1};
 int fuenteOcupada;
+int fin;
 
 
 
@@ -667,8 +668,8 @@ void writeLogMessage(char *id,char *msg){
 	/*calculamos la hora actual*/
 	time_t now = time(0);
 	struct tm *tlocal = localtime(&now);
-	char stnow[19];
-	strftime(stnow,19,"%d %m %y %H: %M: %S",tlocal);
+	char stnow[30];
+	strftime(stnow,30,"%d/%m/%y %H:%M:%S",tlocal);
 	
 	/*escribimos en el log*/
 	logFile = fopen(logFileName, "a");

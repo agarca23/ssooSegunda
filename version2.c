@@ -415,7 +415,7 @@ void *accionesJuez(void* manejadora){
 			}
 		}
 
-		/*Si no ha encontrado un atleta de su tarima lo coge el primero*/
+		/*Si no ha encontrado un atleta de su tarima coge el primero*/
 		if(atletaAdecuado==0){
 			if(colaJuez[0]!=-1){
 				atletaActual=colaJuez[0];
